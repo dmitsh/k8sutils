@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: srv
+spec:
+  containers:
+  - name: nginx
+    image: docker.io/dmitsh/k8sutils:0.1
+    imagePullPolicy: Always
+    ports:
+    - containerPort: 8080
