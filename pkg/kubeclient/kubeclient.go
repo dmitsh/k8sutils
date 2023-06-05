@@ -15,13 +15,11 @@ import (
 type Client struct {
 	client *kubernetes.Clientset
 	config *rest.Config
-	//mux    sync.Mutex
 }
 
 func New() (*Client, error) {
 	client, config, err := createKubeClient()
 	if err != nil {
-		log.Errorf("could not create kubernetes client: %v", err)
 		return nil, err
 	}
 	return &Client{
@@ -32,22 +30,19 @@ func New() (*Client, error) {
 
 func createKubeClient() (*kubernetes.Clientset, *rest.Config, error) {
 	var kubeconfig string
-	var config *rest.Config
-	var err error
 
-	config, err = rest.InClusterConfig()
+	config, err := rest.InClusterConfig()
 	if err != nil {
+		// try outcluster config
 		kubeconfig = os.Getenv("KUBECONFIG")
-		if kubeconfig == "" {
-			log.Warnf("$KUBECONFIG is not set. Using $HOME/.kube/config (if present)")
-			kubeconfig = filepath.Join(
-				os.Getenv("HOME"), ".kube", "config",
-			)
+		if len(kubeconfig) == 0 {
+			kubeconfig = filepath.Join(os.Getenv("HOME"), ".kube", "config")
+			log.Warnf("$KUBECONFIG is not set. Trying %s", kubeconfig)
+			if _, err := os.Stat(kubeconfig); err != nil {
+				return nil, nil, fmt.Errorf("failed to find kubeconfig")
+			}
 		}
-		if kubeconfig == "" {
-			msg := "could not find kubeconfig"
-			return nil, nil, fmt.Errorf(msg)
-		}
+
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
 			return nil, nil, err
@@ -56,7 +51,6 @@ func createKubeClient() (*kubernetes.Clientset, *rest.Config, error) {
 	// create the clientset
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Println(err)
 		return nil, nil, err
 	}
 	return client, config, nil

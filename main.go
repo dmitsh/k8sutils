@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,52 +13,54 @@ import (
 	"github.com/dmitsh/k8sutils/pkg/kubeclient"
 )
 
-var client *kubeclient.Client
+var (
+	client                    *kubeclient.Client
+	namespace, pod, container string
+	port                      int
+)
 
-func getRoot(w http.ResponseWriter, r *http.Request) {
-	//ctx := r.Context()
+func doUsage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-	//fmt.Printf("%s: got / request\n", ctx.Value(keyServerAddr))
-	io.WriteString(w, "This is my website!\n")
+	io.WriteString(w, fmt.Sprintf("Usage: curl %v/exec\n", ctx.Value("serverAddr")))
 }
 
-func doPodCopy(w http.ResponseWriter, r *http.Request) {
-	//ctx := r.Context()
-	//w.Header().Set("Content-Type", "application/json")
+func doExec(w http.ResponseWriter, r *http.Request) {
+	var stdout, stderr bytes.Buffer
+	err := client.ExecCmd(context.Background(), namespace, pod, container,
+		[]string{"cat", "/etc/test/result.json"}, &stdout, &stderr)
 
-	//fmt.Printf("%s: got /hello request\n", ctx.Value(keyServerAddr))
-	io.WriteString(w, "Hello, HTTP!\n")
-	inout, outout, errout, err := client.PodCopyFile("default", "/tmp/my.txt", "/tmp/copy-my.txt", "mypod")
+	log.Infof("STDOUT: %s", stdout.String())
+	log.Infof("STDERR: %s", stderr.String())
 
-	log.Infof("INOUT: %s", inout.String())
-	log.Infof("OUTOUT: %s", outout.String())
-	log.Infof("ERROUT: %s", errout.String())
-
-	// Write response body
-	//w.Write([]byte("Hello, World!"))
-
-	// Write response status code
 	if err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(stdout.Bytes())
 		w.WriteHeader(http.StatusOK)
 	} else {
+		log.Error(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 
 func main() {
+	flag.StringVar(&namespace, "namespace", "default", "namespace")
+	flag.StringVar(&pod, "pod", "test", "pod name")
+	flag.StringVar(&container, "container", "test", "container name")
+	flag.IntVar(&port, "port", 8080, "server port")
+	flag.Parse()
+
 	var err error
 	client, err = kubeclient.New()
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatalf("failed to create Kubernetes client: %v", err)
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", getRoot)
-	mux.HandleFunc("/cp", doPodCopy)
+	mux.HandleFunc("/", doUsage)
+	mux.HandleFunc("/exec", doExec)
 
-	if err := http.ListenAndServe(":8080", mux); err != nil {
-		fmt.Println(err.Error())
-	} else {
-		fmt.Println("DONE")
+	if err = http.ListenAndServe(fmt.Sprintf(":%d", port), mux); err != nil {
+		log.Fatal(err.Error())
 	}
 }

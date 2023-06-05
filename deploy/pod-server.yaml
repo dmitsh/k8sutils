@@ -3,8 +3,9 @@ kind: Pod
 metadata:
   name: srv
 spec:
+  serviceAccountName: pod-exec
   containers:
-  - name: nginx
+  - name: srv
     image: docker.io/dmitsh/k8sutils:0.1
     imagePullPolicy: Always
     ports:

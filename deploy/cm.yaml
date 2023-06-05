@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-configmap
+  namespace: default
+data:
+  result.json: |
+    {
+        "type": "report"
+        "data": "Hello World"
+        "status" : "completed",
+    }
